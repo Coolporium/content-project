@@ -97,12 +97,14 @@ app.get('/get-analytics', async (req, res) => {
 });
 
 // --- START THE SERVER (Corrected Part) ---
-app.listen(port, async () => { // Notice the 'async' here
-  console.log(`Server running at http://localhost:${port}`);
-  if (!userTokens) {
+// --- START THE SERVER (Corrected for Deployment) ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', async () => { 
+  console.log(`Server running and listening on port ${PORT}`);
+  // The login process will only auto-open on your local machine, not on the server
+  if (process.env.NODE_ENV !== 'production' && !userTokens) {
     try {
-        console.log('Starting authentication process...');
-        // Dynamically import the 'open' package
+        console.log('Starting local authentication process...');
         const open = (await import('open')).default; 
         await open(`http://localhost:${port}/login`);
     } catch (err) {
