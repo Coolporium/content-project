@@ -1,19 +1,34 @@
 const express = require('express');
 const { google } = require('googleapis');
-const cors = require('cors'); 
-// Add these two lines for debugging:
-console.log("Attempting to read Client ID:", process.env.YOUR_CLIENT_ID);
-console.log("Attempting to read Client Secret:", process.env.YOUR_CLIENT_SECRET ? "Secret is loaded" : "Secret is UNDEFINED");
+const cors = require('cors'); // We will configure this now
 
 const app = express();
 const port = 3000;
 
-app.use(cors());
+// --- NEW: Specific CORS Configuration ---
+const allowedOrigins = [
+    'https://zesty-entremet-052696.netlify.app',
+    'http://localhost:3000' // Keep for local testing if needed
+];
 
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+}));
+// --- End of New Section ---
+
+// Your Client ID and Secret should be in Render's Environment Variables
 const oauth2Client = new google.auth.OAuth2(
-  process.env.YOUR_CLIENT_ID,       // Use the environment variable
-  process.env.YOUR_CLIENT_SECRET,   // Use the environment variable
-  `http://localhost:${port}/oauth2callback`
+  process.env.YOUR_CLIENT_ID,
+  process.env.YOUR_CLIENT_SECRET,
+  `https://content-project.onrender.com/oauth2callback` // <-- Corrected URL
 );
 
 const scopes = [
@@ -23,6 +38,8 @@ const scopes = [
 
 let userTokens = null;
 
+// (The rest of your server.js code remains exactly the same)
+// ... from getDates function down to the app.listen block ...
 function getDates(period) {
     const endDate = new Date();
     const startDate = new Date();
@@ -86,12 +103,14 @@ app.get('/get-analytics', async (req, res) => {
   });
 
   try {
+    console.log(`Received request for period: ${period}`); // Added for debugging
     const response = await youtubeAnalytics.reports.query({
       ids: 'channel==MINE',
       startDate: startDate,
       endDate: endDate,
       metrics: 'views', 
     });
+    console.log("Successfully fetched data from YouTube Analytics API."); // Added for debugging
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching analytics data:', error.message);
@@ -99,20 +118,7 @@ app.get('/get-analytics', async (req, res) => {
   }
 });
 
-// --- START THE SERVER (Corrected Part) ---
-// --- START THE SERVER (Corrected for Deployment) ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', async () => { 
   console.log(`Server running and listening on port ${PORT}`);
-  // The login process will only auto-open on your local machine, not on the server
-  if (process.env.NODE_ENV !== 'production' && !userTokens) {
-    try {
-        console.log('Starting local authentication process...');
-        const open = (await import('open')).default; 
-        await open(`http://localhost:${port}/login`);
-    } catch (err) {
-        console.error("Failed to automatically open browser:", err);
-        console.log("Please manually open your browser and go to http://localhost:3000/login");
-    }
-  }
 });
