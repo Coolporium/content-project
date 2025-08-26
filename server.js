@@ -1,34 +1,29 @@
 const express = require('express');
 const { google } = require('googleapis');
-const cors = require('cors'); // We will configure this now
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
 
-// --- NEW: Specific CORS Configuration ---
 const allowedOrigins = [
     'https://zesty-entremet-052696.netlify.app',
-    'http://localhost:3000' // Keep for local testing if needed
+    'http://localhost:3000'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
   }
 }));
-// --- End of New Section ---
 
-// Your Client ID and Secret should be in Render's Environment Variables
 const oauth2Client = new google.auth.OAuth2(
   process.env.YOUR_CLIENT_ID,
   process.env.YOUR_CLIENT_SECRET,
-  `https://content-project.onrender.com/oauth2callback` // <-- Corrected URL
+  `https://content-project.onrender.com/oauth2callback`
 );
 
 const scopes = [
@@ -38,11 +33,13 @@ const scopes = [
 
 let userTokens = null;
 
-// (The rest of your server.js code remains exactly the same)
-// ... from getDates function down to the app.listen block ...
 function getDates(period) {
     const endDate = new Date();
     const startDate = new Date();
+    // Set time to 00:00:00 to avoid timezone issues
+    endDate.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+
     switch (period) {
         case '24h':
             startDate.setDate(endDate.getDate() - 1);
@@ -57,7 +54,7 @@ function getDates(period) {
             startDate.setDate(endDate.getDate() - 30);
             break;
         default:
-            startDate.setDate(endDate.getDate() - 7); 
+            startDate.setDate(endDate.getDate() - 7);
     }
     const formatDate = (date) => date.toISOString().split('T')[0];
     return { startDate: formatDate(startDate), endDate: formatDate(endDate) };
@@ -103,15 +100,27 @@ app.get('/get-analytics', async (req, res) => {
   });
 
   try {
-    console.log(`Received request for period: ${period}`); // Added for debugging
+    console.log(`Received request for period: ${period} (${startDate} to ${endDate})`);
     const response = await youtubeAnalytics.reports.query({
       ids: 'channel==MINE',
       startDate: startDate,
       endDate: endDate,
-      metrics: 'views', 
+      metrics: 'views',
     });
-    console.log("Successfully fetched data from YouTube Analytics API."); // Added for debugging
-    res.json(response.data);
+    console.log("Successfully fetched data from YouTube Analytics API.");
+
+    // --- IMPROVED DATA HANDLING ---
+    // Check if the response has rows and is an array
+    if (response.data && Array.isArray(response.data.rows) && response.data.rows.length > 0) {
+        // The view count is the second item (index 1) in each row. Sum them up.
+        const totalViews = response.data.rows.reduce((sum, row) => sum + (row[1] || 0), 0);
+        res.json({ ...response.data, totalViews: totalViews }); // Send back the total
+    } else {
+        // If there are no rows, it means 0 views for that period.
+        res.json({ ...response.data, rows: [], totalViews: 0 });
+    }
+    // --- END OF IMPROVEMENT ---
+
   } catch (error) {
     console.error('Error fetching analytics data:', error.message);
     res.status(500).json({ error: 'Failed to fetch analytics data.' });
@@ -119,6 +128,6 @@ app.get('/get-analytics', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', async () => { 
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running and listening on port ${PORT}`);
 });
