@@ -1,6 +1,9 @@
 const express = require('express');
 const { google } = require('googleapis');
 const cors = require('cors'); 
+// Add these two lines for debugging:
+console.log("Attempting to read Client ID:", process.env.YOUR_CLIENT_ID);
+console.log("Attempting to read Client Secret:", process.env.YOUR_CLIENT_SECRET ? "Secret is loaded" : "Secret is UNDEFINED");
 
 const app = express();
 const port = 3000;
