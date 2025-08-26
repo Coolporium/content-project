@@ -5,6 +5,7 @@ const cors = require('cors');
 const app = express();
 const port = 3000;
 
+// --- Specific CORS Configuration ---
 const allowedOrigins = [
     'https://zesty-entremet-052696.netlify.app',
     'http://localhost:3000'
@@ -36,16 +37,15 @@ let userTokens = null;
 function getDates(period) {
     const endDate = new Date();
     const startDate = new Date();
-    // Set time to 00:00:00 to avoid timezone issues
-    endDate.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
+    endDate.setUTCHours(0, 0, 0, 0);
+    startDate.setUTCHours(0, 0, 0, 0);
 
     switch (period) {
         case '24h':
-            startDate.setDate(endDate.getDate() - 1);
+            startDate.setDate(endDate.getDate() - 2); // Ask for 2 days to ensure data is available
             break;
         case '48h':
-            startDate.setDate(endDate.getDate() - 2);
+            startDate.setDate(endDate.getDate() - 3); // Ask for 3 days
             break;
         case '7d':
             startDate.setDate(endDate.getDate() - 7);
@@ -107,19 +107,15 @@ app.get('/get-analytics', async (req, res) => {
       endDate: endDate,
       metrics: 'views',
     });
-    console.log("Successfully fetched data from YouTube Analytics API.");
+    console.log("YouTube Analytics API Response:", JSON.stringify(response.data, null, 2));
 
-    // --- IMPROVED DATA HANDLING ---
-    // Check if the response has rows and is an array
     if (response.data && Array.isArray(response.data.rows) && response.data.rows.length > 0) {
-        // The view count is the second item (index 1) in each row. Sum them up.
-        const totalViews = response.data.rows.reduce((sum, row) => sum + (row[1] || 0), 0);
-        res.json({ ...response.data, totalViews: totalViews }); // Send back the total
+        // The view count is the first item (index 0) in each row for this type of query.
+        const totalViews = response.data.rows.reduce((sum, row) => sum + (row[0] || 0), 0);
+        res.json({ ...response.data, totalViews: totalViews });
     } else {
-        // If there are no rows, it means 0 views for that period.
         res.json({ ...response.data, rows: [], totalViews: 0 });
     }
-    // --- END OF IMPROVEMENT ---
 
   } catch (error) {
     console.error('Error fetching analytics data:', error.message);
